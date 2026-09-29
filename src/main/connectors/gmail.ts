@@ -12,6 +12,43 @@ import type { SourceConnector } from './types'
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 const MAX_MESSAGES_PER_SYNC = 2000
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000
+const MAX_RETRIES = 6
+const BASE_RETRY_DELAY_MS = 1000
+const MAX_RETRY_DELAY_MS = 32000
+
+interface ApiError {
+  response?: { status?: number; headers?: Record<string, string>; data?: { error?: { errors?: { reason?: string }[] } } }
+  code?: number
+  errors?: { reason?: string }[]
+}
+
+function isRateLimitError(err: unknown): boolean {
+  const e = err as ApiError
+  if (e?.response?.status === 429 || e?.code === 429) return true
+  const reason = e?.errors?.[0]?.reason ?? e?.response?.data?.error?.errors?.[0]?.reason
+  return typeof reason === 'string' && /rateLimitExceeded|quotaExceeded|userRateLimitExceeded/i.test(reason)
+}
+
+/**
+ * The Gmail API's per-minute quota is easy to trip during a large sync
+ * (each message fetch costs quota units). Google's documented fix is
+ * exponential backoff with jitter on 429/quota errors, which this wraps
+ * around every API call in sync() below.
+ */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (!isRateLimitError(err) || attempt >= MAX_RETRIES) throw err
+      const retryAfter = (err as ApiError)?.response?.headers?.['retry-after']
+      const delay = retryAfter
+        ? Number(retryAfter) * 1000
+        : Math.min(MAX_RETRY_DELAY_MS, BASE_RETRY_DELAY_MS * 2 ** attempt) * (0.5 + Math.random() * 0.5)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+}
 
 function credentialsPath(): string {
   // Dev convenience: a credentials.json dropped in the project root is
@@ -179,12 +216,12 @@ export const gmailConnector: SourceConnector = {
     let pageToken: string | undefined
 
     do {
-      const list = await gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken })
+      const list = await withRetry(() => gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken }))
       const messages = list.data.messages ?? []
 
       for (const m of messages) {
         if (!m.id) continue
-        const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' })
+        const full = await withRetry(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
         const headers = full.data.payload?.headers ?? []
         const subject = headers.find((h) => h.name === 'Subject')?.value ?? '(no subject)'
         const from = headers.find((h) => h.name === 'From')?.value ?? null
