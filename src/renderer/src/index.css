@@ -1,0 +1,99 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: canvas;
+  color: canvastext;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.search-input {
+  flex: 1;
+  font-size: 1.1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: transparent;
+  color: inherit;
+}
+
+.source-controls button {
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.status-bar {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.result {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+.result-title {
+  font-weight: 600;
+  text-decoration: none;
+  color: inherit;
+}
+
+.result-title:hover {
+  text-decoration: underline;
+}
+
+.result-meta {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  margin: 0.15rem 0;
+}
+
+.result-snippet {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.result-snippet mark {
+  background: rgba(255, 213, 79, 0.6);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.empty {
+  padding: 1rem;
+  opacity: 0.6;
+  text-align: center;
+}

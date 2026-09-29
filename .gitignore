@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+dist-electron/
+release/
+
+# OAuth client + tokens + the local search index — all personal data, never commit
+credentials.json
+*.enc
+*.sqlite3
+*.sqlite3-*
+
+.DS_Store
+*.log
