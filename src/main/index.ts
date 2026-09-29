@@ -15,7 +15,7 @@ function createWindow(): void {
     width: 1000,
     height: 700,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(__dirname, '../preload/index.mjs'),
       sandbox: false
     }
   })
@@ -23,6 +23,13 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error(`[did-fail-load] code=${code} desc=${desc} url=${url}`)
+  })
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[render-process-gone]', details)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
