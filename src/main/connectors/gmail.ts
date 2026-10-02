@@ -15,6 +15,11 @@ const AUTH_TIMEOUT_MS = 5 * 60 * 1000
 const MAX_RETRIES = 6
 const BASE_RETRY_DELAY_MS = 1000
 const MAX_RETRY_DELAY_MS = 32000
+// Caps sustained throughput to ~5 requests/sec (~1500 quota units/min at 5
+// units/call), comfortably under the Gmail API's per-minute-per-user quota.
+// Backoff alone isn't enough: it only reacts after a burst already tripped
+// the limit, then immediately re-bursts once the backoff window passes.
+const MIN_REQUEST_INTERVAL_MS = 200
 
 interface ApiError {
   response?: { status?: number; headers?: Record<string, string>; data?: { error?: { errors?: { reason?: string }[] } } }
@@ -48,6 +53,18 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
       await new Promise((resolve) => setTimeout(resolve, delay))
     }
   }
+}
+
+let nextRequestSlot = 0
+
+/** Spaces calls out to MIN_REQUEST_INTERVAL_MS apart, then applies withRetry
+ * as a safety net for any quota error that slips through anyway. */
+async function throttled<T>(fn: () => Promise<T>): Promise<T> {
+  const now = Date.now()
+  const runAt = Math.max(now, nextRequestSlot)
+  nextRequestSlot = runAt + MIN_REQUEST_INTERVAL_MS
+  if (runAt > now) await new Promise((resolve) => setTimeout(resolve, runAt - now))
+  return withRetry(fn)
 }
 
 function credentialsPath(): string {
@@ -216,12 +233,12 @@ export const gmailConnector: SourceConnector = {
     let pageToken: string | undefined
 
     do {
-      const list = await withRetry(() => gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken }))
+      const list = await throttled(() => gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken }))
       const messages = list.data.messages ?? []
 
       for (const m of messages) {
         if (!m.id) continue
-        const full = await withRetry(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
+        const full = await throttled(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
         const headers = full.data.payload?.headers ?? []
         const subject = headers.find((h) => h.name === 'Subject')?.value ?? '(no subject)'
         const from = headers.find((h) => h.name === 'From')?.value ?? null

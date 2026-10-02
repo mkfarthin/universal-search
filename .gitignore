@@ -12,3 +12,4 @@ credentials.json
 
 .DS_Store
 *.log
+.claude/
