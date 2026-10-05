@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { GmailAuthState, SearchResult, SyncStatus } from '../../shared/types'
+import type { ConnectorAuthState, FilesAuthState, SearchResult, SyncStatus } from '../../shared/types'
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleString()
@@ -16,18 +16,41 @@ function renderSnippet(snippet: string): ReactNode {
     .map((part, i) => (i % 2 === 1 ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>))
 }
 
+function statusLabel(status: SyncStatus | null, label: string): string | null {
+  if (!status) return null
+  switch (status.state) {
+    case 'authenticating':
+      return `Waiting for ${label} authorization…`
+    case 'syncing':
+      return `Syncing ${label}… ${status.indexed ?? 0} indexed`
+    case 'done':
+      return `${label} sync complete — ${status.indexed ?? 0} indexed`
+    case 'error':
+      return `${label} error: ${status.message}`
+    default:
+      return null
+  }
+}
+
 export default function App(): ReactNode {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
-  const [gmail, setGmail] = useState<GmailAuthState>({ connected: false })
-  const [status, setStatus] = useState<SyncStatus | null>(null)
+  const [gmail, setGmail] = useState<ConnectorAuthState>({ connected: false })
+  const [files, setFiles] = useState<FilesAuthState>({ connected: false, folders: [] })
+  const [gmailStatus, setGmailStatus] = useState<SyncStatus | null>(null)
+  const [filesStatus, setFilesStatus] = useState<SyncStatus | null>(null)
 
   useEffect(() => {
     window.api.gmail.status().then(setGmail)
-    return window.api.gmail.onSyncProgress((s) => {
-      setStatus(s)
-      if (s.state === 'done' || s.state === 'idle') {
-        window.api.gmail.status().then(setGmail)
+    window.api.files.status().then(setFiles)
+
+    return window.api.onSyncProgress((s) => {
+      if (s.source === 'gmail') {
+        setGmailStatus(s)
+        if (s.state === 'done' || s.state === 'idle') window.api.gmail.status().then(setGmail)
+      } else if (s.source === 'files') {
+        setFilesStatus(s)
+        if (s.state === 'done' || s.state === 'idle') window.api.files.status().then(setFiles)
       }
     })
   }, [])
@@ -43,21 +66,8 @@ export default function App(): ReactNode {
 
   const visibleResults = query.trim() ? results : []
 
-  const statusLabel = useMemo(() => {
-    if (!status) return null
-    switch (status.state) {
-      case 'authenticating':
-        return 'Waiting for Google sign-in in your browser…'
-      case 'syncing':
-        return `Syncing Gmail… ${status.indexed ?? 0} indexed`
-      case 'done':
-        return `Gmail sync complete — ${status.indexed ?? 0} messages indexed`
-      case 'error':
-        return `Error: ${status.message}`
-      default:
-        return null
-    }
-  }, [status])
+  const gmailLabel = useMemo(() => statusLabel(gmailStatus, 'Gmail'), [gmailStatus])
+  const filesLabel = useMemo(() => statusLabel(filesStatus, 'Files'), [filesStatus])
 
   return (
     <div className="app">
@@ -75,10 +85,20 @@ export default function App(): ReactNode {
           ) : (
             <button onClick={() => window.api.gmail.connect().then(setGmail)}>Connect Gmail</button>
           )}
+          <button onClick={() => window.api.files.connect().then(setFiles)}>Add Folder…</button>
+          {files.connected && <button onClick={() => window.api.files.sync()}>Sync Files</button>}
         </div>
       </header>
 
-      {statusLabel && <div className="status-bar">{statusLabel}</div>}
+      {files.connected && (
+        <div className="folders-bar">
+          Indexing {files.folders.length} folder{files.folders.length === 1 ? '' : 's'}:{' '}
+          {files.folders.join(', ')}
+        </div>
+      )}
+
+      {gmailLabel && <div className="status-bar">{gmailLabel}</div>}
+      {filesLabel && <div className="status-bar">{filesLabel}</div>}
 
       <ul className="results">
         {visibleResults.map((r) => (
@@ -87,7 +107,8 @@ export default function App(): ReactNode {
               {r.title}
             </a>
             <div className="result-meta">
-              {r.source} · {r.sender ?? 'unknown sender'} · {formatDate(r.timestamp)}
+              {r.source} · {r.sender ?? (r.source === 'files' ? 'local file' : 'unknown sender')} ·{' '}
+              {formatDate(r.timestamp)}
             </div>
             <div className="result-snippet">{renderSnippet(r.snippet)}</div>
           </li>

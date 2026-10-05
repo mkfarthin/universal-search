@@ -1,8 +1,14 @@
 export const IPC = {
   search: 'search:query',
+  syncStatus: 'sync:status',
+
   gmailAuthStatus: 'gmail:auth-status',
   gmailAuthStart: 'gmail:auth-start',
   gmailDisconnect: 'gmail:disconnect',
   gmailSync: 'gmail:sync',
-  gmailSyncStatus: 'gmail:sync-status'
+
+  filesAuthStatus: 'files:auth-status',
+  filesAuthStart: 'files:auth-start',
+  filesDisconnect: 'files:disconnect',
+  filesSync: 'files:sync'
 } as const

@@ -29,6 +29,17 @@ Your Gmail OAuth token is encrypted at rest (via Electron's `safeStorage`)
 and stored in the app's local data directory, alongside the SQLite search
 index. Both are gitignored and never leave your machine.
 
+### Index local files
+
+Click **Add Folder…** and pick a directory in the native file picker — it's
+indexed on the next **Sync Files**. Add it again to index more folders.
+
+Content is extracted and indexed for common text file types (`.md`, `.txt`,
+source code, `.json`, `.csv`, etc., up to 2MB each); other file types are
+still searchable by filename. Dot-directories (`.ssh`, `.git`, `.aws`, …)
+and common build/dependency noise (`node_modules`, `dist`, `build`, venvs)
+are always skipped, even inside a broad folder like your home directory.
+
 ## Development
 
 - `npm run dev` — start the app with hot reload
@@ -38,7 +49,9 @@ index. Both are gitignored and never leave your machine.
 - `npm run build` — production build
 - `npm run package` — build and package a distributable via electron-builder
 
-## Known limitation: WhatsApp
+## Known limitations
+
+### WhatsApp
 
 WhatsApp has no official API for personal accounts, so it isn't wired up
 yet. The two realistic paths, when we get to it, are: (a) parsing manually

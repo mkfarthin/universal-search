@@ -16,6 +16,10 @@ export interface SyncStatus {
   indexed?: number
 }
 
-export interface GmailAuthState {
+export interface ConnectorAuthState {
   connected: boolean
+}
+
+export interface FilesAuthState extends ConnectorAuthState {
+  folders: string[]
 }

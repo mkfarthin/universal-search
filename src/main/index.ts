@@ -5,6 +5,7 @@ import { IPC } from '../shared/ipc'
 import type { SyncStatus } from '../shared/types'
 import { getDb, searchDocuments } from './db'
 import { gmailConnector } from './connectors/gmail'
+import { filesConnector, listFolders } from './connectors/files'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -40,7 +41,7 @@ function createWindow(): void {
 }
 
 function sendSyncStatus(status: SyncStatus): void {
-  mainWindow?.webContents.send(IPC.gmailSyncStatus, status)
+  mainWindow?.webContents.send(IPC.syncStatus, status)
 }
 
 app.whenReady().then(() => {
@@ -76,6 +77,36 @@ app.whenReady().then(() => {
       return result
     } catch (err) {
       sendSyncStatus({ source: 'gmail', state: 'error', message: (err as Error).message })
+      throw err
+    }
+  })
+
+  ipcMain.handle(IPC.filesAuthStatus, () => ({ connected: filesConnector.isConnected(), folders: listFolders() }))
+
+  ipcMain.handle(IPC.filesAuthStart, async () => {
+    try {
+      await filesConnector.connect()
+      return { connected: filesConnector.isConnected(), folders: listFolders() }
+    } catch (err) {
+      sendSyncStatus({ source: 'files', state: 'error', message: (err as Error).message })
+      throw err
+    }
+  })
+
+  ipcMain.handle(IPC.filesDisconnect, () => {
+    filesConnector.disconnect()
+  })
+
+  ipcMain.handle(IPC.filesSync, async () => {
+    sendSyncStatus({ source: 'files', state: 'syncing', indexed: 0 })
+    try {
+      const result = await filesConnector.sync((indexed) =>
+        sendSyncStatus({ source: 'files', state: 'syncing', indexed })
+      )
+      sendSyncStatus({ source: 'files', state: 'done', indexed: result.indexed })
+      return result
+    } catch (err) {
+      sendSyncStatus({ source: 'files', state: 'error', message: (err as Error).message })
       throw err
     }
   })

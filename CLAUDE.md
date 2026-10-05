@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A local-first desktop app (Electron + React + TypeScript) that indexes personal
-data sources — starting with Gmail — into a single local full-text search
-index, so the user can search across all of them from one box. Everything is
-local-only: no backend, no cloud sync. See README.md for Gmail OAuth setup.
+data sources — Gmail and local files so far — into a single local full-text
+search index, so the user can search across all of them from one box.
+Everything is local-only: no backend, no cloud sync. See README.md for Gmail
+OAuth setup and how folder indexing works.
 
 ## Commands
 
@@ -49,22 +50,41 @@ real on-disk path.
 
 Query safety: `sanitizeMatchQuery` quotes every token before it reaches
 FTS5's MATCH syntax, so raw user input can never be interpreted as FTS5
-query operators. Match highlighting uses ``/`` as snippet
-delimiters (not HTML tags) specifically so the renderer never needs
+query operators. Match highlighting uses a pair of non-printable marker
+characters (`SNIPPET_MATCH_START`/`END` in `schema.ts`, not HTML tags) as
+snippet delimiters, specifically so the renderer never needs
 `dangerouslySetInnerHTML` on untrusted document content (an indexed email
-body, eventually a WhatsApp message) — see `renderSnippet` in `App.tsx`.
+body, a file's contents) — see `renderSnippet` in `App.tsx`.
 
 **Source connectors (`src/main/connectors/`):** every data source
 implements the `SourceConnector` interface (`connect`/`disconnect`/`sync`/
-`isConnected`) in `types.ts`. `gmail.ts` is the reference implementation:
-loopback-redirect OAuth (a local HTTP server catches Google's redirect —
-the standard flow for installed/desktop apps), encrypted token storage via
-`safeStorage`, and a `sync()` that walks the Gmail API and upserts into the
-shared index. Adding a new source (Files, WhatsApp exports, …) means adding
-a new connector here and wiring it into `src/main/index.ts` the same way
-Gmail is wired — the DB layer and renderer don't need to know the source
-exists ahead of time beyond a `source` string on each document.
+`isConnected`) in `types.ts`, and all connectors broadcast progress on the
+single shared `IPC.syncStatus` channel (payload carries `source` so the
+renderer can tell them apart) rather than each getting its own channel.
+Adding a new source means adding a connector here and wiring it into
+`src/main/index.ts` the same way Gmail/Files are — the DB layer and
+renderer don't need to know the source exists ahead of time beyond a
+`source` string on each document.
+
+- `gmail.ts`: loopback-redirect OAuth (a local HTTP server catches
+  Google's redirect — the standard flow for installed/desktop apps),
+  encrypted token storage via `safeStorage`, and a `sync()` that walks the
+  Gmail API. Proactively throttles requests (`throttled()`, ~5/sec) rather
+  than only reacting to quota errors after the fact — reactive
+  backoff-on-429 alone re-trips the same per-minute quota as soon as the
+  backoff window passes, since it doesn't change the sustained request
+  rate. `withRetry()` remains as a fallback for whatever still slips
+  through.
+- `files.ts` + `files-walk.ts`: `connect()` opens a native folder picker
+  (`dialog.showOpenDialog`) and appends to a persisted folder list
+  (`files-folders.json` in `userData`); `sync()` walks those folders. The
+  walk itself (`files-walk.ts`) is pure/Electron-free — same testable-core
+  split as `db/schema.ts` — and unconditionally skips dot-directories
+  (so pointing it at a home directory never surfaces `.ssh`/`.aws`/etc.)
+  and common build/dependency noise. Content is read for a fixed set of
+  text-like extensions under a size cap; other files are still indexed by
+  filename only.
 
 **WhatsApp-specific constraint:** there's no official API for a personal
 WhatsApp account, so that connector doesn't exist yet — see the "Known
-limitation" note in README.md before starting on it.
+limitations" section in README.md before starting on it.
