@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { FilesAuthState, GmailAuthState, SearchResult, SyncStatus } from '../../shared/types'
+import type { FilesAuthState, GmailAuthState, SearchResult, SearchSort, SyncStatus } from '../../shared/types'
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleString()
@@ -34,7 +34,9 @@ function statusLabel(status: SyncStatus | null, label: string): string | null {
 
 export default function App(): ReactNode {
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SearchSort>('relevance')
   const [results, setResults] = useState<SearchResult[]>([])
+  const [total, setTotal] = useState(0)
   const [gmail, setGmail] = useState<GmailAuthState>({ connected: false, includeSpamTrash: false })
   const [files, setFiles] = useState<FilesAuthState>({ connected: false, folders: [] })
   const [gmailStatus, setGmailStatus] = useState<SyncStatus | null>(null)
@@ -66,12 +68,16 @@ export default function App(): ReactNode {
     const text = query.trim()
     if (!text) return
     const timer = setTimeout(() => {
-      window.api.search(text).then(setResults)
+      window.api.search(text, sort).then(({ results, total }) => {
+        setResults(results)
+        setTotal(total)
+      })
     }, 150)
     return () => clearTimeout(timer)
-  }, [query])
+  }, [query, sort])
 
   const visibleResults = query.trim() ? results : []
+  const visibleTotal = query.trim() ? total : 0
 
   const gmailLabel = useMemo(() => statusLabel(gmailStatus, 'Gmail'), [gmailStatus])
   const filesLabel = useMemo(() => statusLabel(filesStatus, 'Files'), [filesStatus])
@@ -86,6 +92,16 @@ export default function App(): ReactNode {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <select
+          className="sort-select"
+          aria-label="Sort results by"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SearchSort)}
+        >
+          <option value="relevance">Relevance</option>
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+        </select>
         <div className="source-controls">
           {gmail.connected ? (
             <button onClick={() => window.api.gmail.sync()}>Sync Gmail</button>
@@ -124,6 +140,12 @@ export default function App(): ReactNode {
 
       {gmailLabel && <div className="status-bar">{gmailLabel}</div>}
       {filesLabel && <div className="status-bar">{filesLabel}</div>}
+
+      {query.trim() && (
+        <div className="results-count">
+          {visibleTotal} result{visibleTotal === 1 ? '' : 's'}
+        </div>
+      )}
 
       <ul className="results">
         {visibleResults.map((r) => (

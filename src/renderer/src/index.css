@@ -37,6 +37,15 @@ body {
   color: inherit;
 }
 
+.sort-select {
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: canvas;
+  color: inherit;
+  font-size: 0.85rem;
+}
+
 .source-controls button {
   padding: 0.5rem 0.9rem;
   border-radius: 6px;
@@ -109,6 +118,12 @@ body {
   font-size: 0.85rem;
   opacity: 0.8;
   border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.results-count {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  opacity: 0.6;
 }
 
 .results {

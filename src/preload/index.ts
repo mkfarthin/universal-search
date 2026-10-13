@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { FilesAuthState, GmailAuthState, SearchResult, SyncStatus } from '../shared/types'
+import type { FilesAuthState, GmailAuthState, SearchResponse, SearchSort, SyncStatus } from '../shared/types'
 
 const api = {
-  search: (text: string): Promise<SearchResult[]> => ipcRenderer.invoke(IPC.search, text),
+  search: (text: string, sort?: SearchSort): Promise<SearchResponse> => ipcRenderer.invoke(IPC.search, text, sort),
 
   onSyncProgress: (cb: (status: SyncStatus) => void): (() => void) => {
     const listener = (_: unknown, status: SyncStatus): void => cb(status)

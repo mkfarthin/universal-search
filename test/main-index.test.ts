@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => {
     },
     getDb: vi.fn(() => ({})),
     searchDocuments: vi.fn(),
+    countMatches: vi.fn(),
     gmailConnector: {
       isConnected: vi.fn(),
       connect: vi.fn(),
@@ -75,7 +76,8 @@ vi.mock('electron', () => ({
 
 vi.mock('../src/main/db', () => ({
   getDb: mocks.getDb,
-  searchDocuments: mocks.searchDocuments
+  searchDocuments: mocks.searchDocuments,
+  countMatches: mocks.countMatches
 }))
 
 vi.mock('../src/main/connectors/gmail', () => ({
@@ -111,6 +113,7 @@ beforeEach(() => {
   mocks.ipcMain.handle.mockClear()
   mocks.getDb.mockClear()
   mocks.searchDocuments.mockReset()
+  mocks.countMatches.mockReset()
   mocks.gmailConnector.isConnected.mockReset()
   mocks.gmailConnector.connect.mockReset()
   mocks.gmailConnector.disconnect.mockReset()
@@ -127,11 +130,15 @@ beforeEach(() => {
 })
 
 describe('search', () => {
-  it('delegates to searchDocuments with the query text', async () => {
+  it('returns results and the total match count together', async () => {
     mocks.searchDocuments.mockReturnValue([{ id: 'gmail:1' }])
-    const result = await handler(IPC.search)({}, 'invoice')
-    expect(mocks.searchDocuments).toHaveBeenCalledWith(mocks.getDb(), 'invoice')
-    expect(result).toEqual([{ id: 'gmail:1' }])
+    mocks.countMatches.mockReturnValue(37)
+
+    const result = await handler(IPC.search)({}, 'invoice', 'date-desc')
+
+    expect(mocks.searchDocuments).toHaveBeenCalledWith(mocks.getDb(), 'invoice', { sort: 'date-desc' })
+    expect(mocks.countMatches).toHaveBeenCalledWith(mocks.getDb(), 'invoice')
+    expect(result).toEqual({ results: [{ id: 'gmail:1' }], total: 37 })
   })
 })
 

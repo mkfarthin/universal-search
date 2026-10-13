@@ -2,8 +2,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC } from '../shared/ipc'
-import type { SyncStatus } from '../shared/types'
-import { getDb, searchDocuments } from './db'
+import type { SearchSort, SyncStatus } from '../shared/types'
+import { countMatches, getDb, searchDocuments } from './db'
 import { gmailConnector, getIncludeSpamTrash, setIncludeSpamTrash } from './connectors/gmail'
 import { filesConnector, listFolders, removeFolder } from './connectors/files'
 
@@ -47,7 +47,10 @@ function sendSyncStatus(status: SyncStatus): void {
 app.whenReady().then(() => {
   getDb() // initialize the local index eagerly so search is ready immediately
 
-  ipcMain.handle(IPC.search, (_e, text: string) => searchDocuments(getDb(), text))
+  ipcMain.handle(IPC.search, (_e, text: string, sort?: SearchSort) => {
+    const db = getDb()
+    return { results: searchDocuments(db, text, { sort }), total: countMatches(db, text) }
+  })
 
   ipcMain.handle(IPC.gmailAuthStatus, () => ({
     connected: gmailConnector.isConnected(),

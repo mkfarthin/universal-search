@@ -95,17 +95,43 @@ export interface SearchRow {
   snippet: string
 }
 
-export function searchDocuments(db: Database.Database, text: string, limit = 50): SearchRow[] {
+export type SearchSort = 'relevance' | 'date-desc' | 'date-asc'
+
+/** Whitelisted ORDER BY fragments — `sort` is never interpolated directly,
+ * so an unexpected value can't reach raw SQL. */
+const SORT_CLAUSES: Record<SearchSort, string> = {
+  relevance: 'rank',
+  'date-desc': 'd.timestamp DESC',
+  'date-asc': 'd.timestamp ASC'
+}
+
+export interface SearchOptions {
+  limit?: number
+  sort?: SearchSort
+}
+
+export function searchDocuments(db: Database.Database, text: string, options: SearchOptions = {}): SearchRow[] {
+  const { limit = 50, sort = 'relevance' } = options
+  const orderBy = SORT_CLAUSES[sort] ?? SORT_CLAUSES.relevance
   const stmt = db.prepare(`
     SELECT d.id, d.source, d.title, d.sender, d.timestamp, d.link,
            snippet(documents_fts, 2, ?, ?, '…', 12) AS snippet
     FROM documents_fts
     JOIN documents d ON d.rowid = documents_fts.rowid
     WHERE documents_fts MATCH ?
-    ORDER BY rank
+    ORDER BY ${orderBy}
     LIMIT ?
   `)
   return stmt.all(SNIPPET_MATCH_START, SNIPPET_MATCH_END, sanitizeMatchQuery(text), limit) as SearchRow[]
+}
+
+/** Total matches for a query, independent of the display limit — lets the
+ * UI show "N results" even when more matched than are actually rendered. */
+export function countMatches(db: Database.Database, text: string): number {
+  const row = db.prepare(`SELECT count(*) AS c FROM documents_fts WHERE documents_fts MATCH ?`).get(
+    sanitizeMatchQuery(text)
+  ) as { c: number }
+  return row.c
 }
 
 /**

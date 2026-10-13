@@ -71,6 +71,16 @@ snippet delimiters, specifically so the renderer never needs
 `dangerouslySetInnerHTML` on untrusted document content (an indexed email
 body, a file's contents) — see `renderSnippet` in `App.tsx`.
 
+Sorting: `searchDocuments(db, text, { sort })` maps `sort` through a
+whitelisted `Record<SearchSort, string>` of literal `ORDER BY` fragments
+(`schema.ts`) rather than interpolating it into SQL directly — same
+defense-in-depth spirit as the FTS5 query sanitization above, even though
+`sort` is renderer-controlled from a fixed `<select>`, not raw text.
+`countMatches(db, text)` runs a separate `count(*)` so the UI can show the
+true total match count independent of the display `limit` — the renderer
+calls both together via one `IPC.search` round trip (`{ results, total }`
+in `shared/types.ts`), not two.
+
 **Source connectors (`src/main/connectors/`):** every data source
 implements the `SourceConnector` interface (`connect`/`disconnect`/`sync`/
 `isConnected`) in `types.ts`, and all connectors broadcast progress on the

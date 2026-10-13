@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import {
+  countMatches,
   deleteDocumentsByIdPrefix,
   initSchema,
   sanitizeMatchQuery,
@@ -145,5 +146,83 @@ describe('deleteDocumentsByIdPrefix', () => {
     const remaining = searchDocuments(db, 'content')
     expect(remaining).toHaveLength(1)
     expect(remaining[0].id).toBe('files:/Users/x/100X_done/b.txt')
+  })
+})
+
+describe('searchDocuments sorting', () => {
+  function seed(db: Database.Database, id: string, timestamp: number): void {
+    upsertDocument(db, {
+      id,
+      source: 'gmail',
+      title: 'Invoice ' + id,
+      sender: null,
+      timestamp,
+      link: null,
+      body: 'invoice content'
+    })
+  }
+
+  it('defaults to relevance order (unchanged behavior)', () => {
+    const db = makeDb()
+    seed(db, 'a', 1000)
+    seed(db, 'b', 3000)
+    seed(db, 'c', 2000)
+
+    const results = searchDocuments(db, 'invoice')
+    expect(results).toHaveLength(3)
+  })
+
+  it('sorts by date-desc (newest first)', () => {
+    const db = makeDb()
+    seed(db, 'a', 1000)
+    seed(db, 'b', 3000)
+    seed(db, 'c', 2000)
+
+    const results = searchDocuments(db, 'invoice', { sort: 'date-desc' })
+    expect(results.map((r) => r.id)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('sorts by date-asc (oldest first)', () => {
+    const db = makeDb()
+    seed(db, 'a', 1000)
+    seed(db, 'b', 3000)
+    seed(db, 'c', 2000)
+
+    const results = searchDocuments(db, 'invoice', { sort: 'date-asc' })
+    expect(results.map((r) => r.id)).toEqual(['a', 'c', 'b'])
+  })
+
+  it('respects a custom limit', () => {
+    const db = makeDb()
+    seed(db, 'a', 1000)
+    seed(db, 'b', 2000)
+    seed(db, 'c', 3000)
+
+    expect(searchDocuments(db, 'invoice', { limit: 2 })).toHaveLength(2)
+  })
+})
+
+describe('countMatches', () => {
+  it('counts all matches independent of the display limit', () => {
+    const db = makeDb()
+    for (let i = 0; i < 5; i++) {
+      upsertDocument(db, {
+        id: `gmail:${i}`,
+        source: 'gmail',
+        title: `Invoice ${i}`,
+        sender: null,
+        timestamp: Date.now(),
+        link: null,
+        body: 'invoice content'
+      })
+    }
+
+    expect(countMatches(db, 'invoice')).toBe(5)
+    expect(searchDocuments(db, 'invoice', { limit: 2 })).toHaveLength(2)
+  })
+
+  it('returns 0 for no matches', () => {
+    const db = makeDb()
+    expect(countMatches(db, 'nothing matches this')).toBe(0)
   })
 })

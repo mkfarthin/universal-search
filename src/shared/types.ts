@@ -9,6 +9,14 @@ export interface SearchResult {
   snippet: string
 }
 
+export type SearchSort = 'relevance' | 'date-desc' | 'date-asc'
+
+export interface SearchResponse {
+  results: SearchResult[]
+  /** Total matches for the query, independent of how many were returned. */
+  total: number
+}
+
 export interface SyncStatus {
   source: string
   state: 'idle' | 'authenticating' | 'syncing' | 'error' | 'done'
