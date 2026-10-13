@@ -3,6 +3,7 @@ out/
 dist/
 dist-electron/
 release/
+coverage/
 
 # OAuth client + tokens + the local search index — all personal data, never commit
 credentials.json
