@@ -47,10 +47,17 @@ export default function App(): ReactNode {
     return window.api.onSyncProgress((s) => {
       if (s.source === 'gmail') {
         setGmailStatus(s)
-        if (s.state === 'done' || s.state === 'idle') window.api.gmail.status().then(setGmail)
+        // Also re-check on 'error': a sync failure can itself change
+        // connection state (e.g. a dead token gets cleared), and the
+        // button (Connect vs Sync) needs to reflect that immediately.
+        if (s.state === 'done' || s.state === 'idle' || s.state === 'error') {
+          window.api.gmail.status().then(setGmail)
+        }
       } else if (s.source === 'files') {
         setFilesStatus(s)
-        if (s.state === 'done' || s.state === 'idle') window.api.files.status().then(setFiles)
+        if (s.state === 'done' || s.state === 'idle' || s.state === 'error') {
+          window.api.files.status().then(setFiles)
+        }
       }
     })
   }, [])

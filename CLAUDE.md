@@ -94,7 +94,13 @@ renderer don't need to know the source exists ahead of time beyond a
   reusable if another connector ever needs the same treatment. The MIME
   payload walking (`extractPlainText`, nested multipart handling) is
   likewise split out, into `gmail-parse.ts`, for the same testable-core
-  reason.
+  reason. `sync()` also catches `invalid_grant` (`gmail-errors.ts`) — a
+  dead refresh token, whether revoked or (very commonly, for a consent
+  screen still in Testing publishing status) simply expired after 7 days
+  — clears the stored token so `isConnected()` goes false, and throws an
+  actionable message instead of the raw OAuth error string. The renderer
+  re-fetches `gmail.status()` on a sync `'error'` as well as `'done'`, so
+  the Connect/Sync button updates immediately without a reload.
 - `files.ts` + `files-walk.ts`: `connect()` opens a native folder picker
   (`dialog.showOpenDialog`) and appends to a persisted folder list
   (`files-folders.json` in `userData`); `sync()` walks those folders, and

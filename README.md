@@ -29,6 +29,19 @@ Your Gmail OAuth token is encrypted at rest (via Electron's `safeStorage`)
 and stored in the app's local data directory, alongside the SQLite search
 index. Both are gitignored and never leave your machine.
 
+**If sync fails with "connection expired or was revoked":** if your OAuth
+consent screen is still in **Testing** publishing status (the default,
+and the easiest path to get set up at all — see the `org_internal` note
+below), Google caps refresh tokens at **7 days regardless of use**. The
+app detects this specific failure, clears the dead token automatically,
+and switches the button back to **Connect Gmail** — just click it again
+to re-authorize. To stop this from recurring every week, move the OAuth
+consent screen from **Testing** to **In production** in the Cloud
+Console (Google may still show an "unverified app" warning during
+consent for an app only you use — that's fine, click through it); this
+removes the 7-day limit without requiring full verification for personal
+use.
+
 By default, sync excludes Spam and Trash (matching Gmail's own API
 default). Check **Include Spam/Trash** to pull those in too — it takes
 effect on the next **Sync Gmail**, not retroactively.

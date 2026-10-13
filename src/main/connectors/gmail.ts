@@ -8,6 +8,7 @@ import path from 'node:path'
 import { URL } from 'node:url'
 import { getDb, recordSync, upsertDocument } from '../db'
 import { createThrottle, withRetry } from '../lib/rate-limit'
+import { isInvalidGrantError } from './gmail-errors'
 import { extractPlainText, findHeader } from './gmail-parse'
 import type { SourceConnector } from './types'
 
@@ -168,6 +169,10 @@ async function getAuthorizedClient(): Promise<OAuth2Client> {
   return client
 }
 
+function clearToken(): void {
+  if (fs.existsSync(tokenPath())) fs.unlinkSync(tokenPath())
+}
+
 export const gmailConnector: SourceConnector = {
   id: 'gmail',
 
@@ -180,50 +185,62 @@ export const gmailConnector: SourceConnector = {
   },
 
   disconnect(): void {
-    if (fs.existsSync(tokenPath())) fs.unlinkSync(tokenPath())
+    clearToken()
   },
 
   async sync(onProgress): Promise<{ indexed: number }> {
-    const auth = await getAuthorizedClient()
-    const gmail = google.gmail({ version: 'v1', auth })
-    const db = getDb()
-    const includeSpamTrash = getIncludeSpamTrash()
+    try {
+      const auth = await getAuthorizedClient()
+      const gmail = google.gmail({ version: 'v1', auth })
+      const db = getDb()
+      const includeSpamTrash = getIncludeSpamTrash()
 
-    let indexed = 0
-    let pageToken: string | undefined
+      let indexed = 0
+      let pageToken: string | undefined
 
-    do {
-      const list = await throttled(() =>
-        gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken, includeSpamTrash })
-      )
-      const messages = list.data.messages ?? []
+      do {
+        const list = await throttled(() =>
+          gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken, includeSpamTrash })
+        )
+        const messages = list.data.messages ?? []
 
-      for (const m of messages) {
-        if (!m.id) continue
-        const full = await throttled(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
-        const headers = full.data.payload?.headers ?? []
-        const subject = findHeader(headers, 'Subject') ?? '(no subject)'
-        const from = findHeader(headers, 'From')
-        const timestamp = full.data.internalDate ? Number(full.data.internalDate) : Date.now()
-        const body = extractPlainText(full.data.payload) ?? full.data.snippet ?? ''
+        for (const m of messages) {
+          if (!m.id) continue
+          const full = await throttled(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
+          const headers = full.data.payload?.headers ?? []
+          const subject = findHeader(headers, 'Subject') ?? '(no subject)'
+          const from = findHeader(headers, 'From')
+          const timestamp = full.data.internalDate ? Number(full.data.internalDate) : Date.now()
+          const body = extractPlainText(full.data.payload) ?? full.data.snippet ?? ''
 
-        upsertDocument(db, {
-          id: `gmail:${m.id}`,
-          source: 'gmail',
-          title: subject,
-          sender: from,
-          timestamp,
-          link: `https://mail.google.com/mail/u/0/#all/${m.id}`,
-          body
-        })
-        indexed += 1
-        onProgress?.(indexed)
+          upsertDocument(db, {
+            id: `gmail:${m.id}`,
+            source: 'gmail',
+            title: subject,
+            sender: from,
+            timestamp,
+            link: `https://mail.google.com/mail/u/0/#all/${m.id}`,
+            body
+          })
+          indexed += 1
+          onProgress?.(indexed)
+        }
+
+        pageToken = list.data.nextPageToken ?? undefined
+      } while (pageToken && indexed < MAX_MESSAGES_PER_SYNC)
+
+      recordSync(db, 'gmail')
+      return { indexed }
+    } catch (err) {
+      if (isInvalidGrantError(err)) {
+        // A dead refresh token would fail identically on every future
+        // sync — clear it so isConnected() goes false and the UI offers
+        // "Connect Gmail" again instead of a permanently-broken "Sync
+        // Gmail" button.
+        clearToken()
+        throw new Error('Your Gmail connection expired or was revoked. Click "Connect Gmail" to reconnect.')
       }
-
-      pageToken = list.data.nextPageToken ?? undefined
-    } while (pageToken && indexed < MAX_MESSAGES_PER_SYNC)
-
-    recordSync(db, 'gmail')
-    return { indexed }
+      throw err
+    }
   }
 }
