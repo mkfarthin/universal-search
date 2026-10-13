@@ -29,6 +29,10 @@ Your Gmail OAuth token is encrypted at rest (via Electron's `safeStorage`)
 and stored in the app's local data directory, alongside the SQLite search
 index. Both are gitignored and never leave your machine.
 
+By default, sync excludes Spam and Trash (matching Gmail's own API
+default). Check **Include Spam/Trash** to pull those in too — it takes
+effect on the next **Sync Gmail**, not retroactively.
+
 ### Index local files
 
 Click **Add Folder…** and pick a directory in the native file picker — it's

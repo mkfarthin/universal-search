@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { IPC } from '../shared/ipc'
 import type { SyncStatus } from '../shared/types'
 import { getDb, searchDocuments } from './db'
-import { gmailConnector } from './connectors/gmail'
+import { gmailConnector, getIncludeSpamTrash, setIncludeSpamTrash } from './connectors/gmail'
 import { filesConnector, listFolders, removeFolder } from './connectors/files'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -49,14 +49,17 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC.search, (_e, text: string) => searchDocuments(getDb(), text))
 
-  ipcMain.handle(IPC.gmailAuthStatus, () => ({ connected: gmailConnector.isConnected() }))
+  ipcMain.handle(IPC.gmailAuthStatus, () => ({
+    connected: gmailConnector.isConnected(),
+    includeSpamTrash: getIncludeSpamTrash()
+  }))
 
   ipcMain.handle(IPC.gmailAuthStart, async () => {
     sendSyncStatus({ source: 'gmail', state: 'authenticating' })
     try {
       await gmailConnector.connect()
       sendSyncStatus({ source: 'gmail', state: 'idle' })
-      return { connected: true }
+      return { connected: true, includeSpamTrash: getIncludeSpamTrash() }
     } catch (err) {
       sendSyncStatus({ source: 'gmail', state: 'error', message: (err as Error).message })
       throw err
@@ -65,6 +68,11 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC.gmailDisconnect, () => {
     gmailConnector.disconnect()
+  })
+
+  ipcMain.handle(IPC.gmailSetIncludeSpamTrash, (_e, value: boolean) => {
+    setIncludeSpamTrash(value)
+    return { connected: gmailConnector.isConnected(), includeSpamTrash: getIncludeSpamTrash() }
   })
 
   ipcMain.handle(IPC.gmailSync, async () => {

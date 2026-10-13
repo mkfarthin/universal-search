@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
-import type { ConnectorAuthState, FilesAuthState, SearchResult, SyncStatus } from '../shared/types'
+import type { FilesAuthState, GmailAuthState, SearchResult, SyncStatus } from '../shared/types'
 
 const api = {
   search: (text: string): Promise<SearchResult[]> => ipcRenderer.invoke(IPC.search, text),
@@ -12,10 +12,12 @@ const api = {
   },
 
   gmail: {
-    status: (): Promise<ConnectorAuthState> => ipcRenderer.invoke(IPC.gmailAuthStatus),
-    connect: (): Promise<ConnectorAuthState> => ipcRenderer.invoke(IPC.gmailAuthStart),
+    status: (): Promise<GmailAuthState> => ipcRenderer.invoke(IPC.gmailAuthStatus),
+    connect: (): Promise<GmailAuthState> => ipcRenderer.invoke(IPC.gmailAuthStart),
     disconnect: (): Promise<void> => ipcRenderer.invoke(IPC.gmailDisconnect),
-    sync: (): Promise<{ indexed: number }> => ipcRenderer.invoke(IPC.gmailSync)
+    sync: (): Promise<{ indexed: number }> => ipcRenderer.invoke(IPC.gmailSync),
+    setIncludeSpamTrash: (value: boolean): Promise<GmailAuthState> =>
+      ipcRenderer.invoke(IPC.gmailSetIncludeSpamTrash, value)
   },
 
   files: {

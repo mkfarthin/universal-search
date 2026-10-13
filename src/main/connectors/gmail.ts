@@ -42,6 +42,25 @@ function tokenPath(): string {
   return path.join(app.getPath('userData'), 'gmail-token.enc')
 }
 
+function settingsPath(): string {
+  return path.join(app.getPath('userData'), 'gmail-settings.json')
+}
+
+/** Off by default: Gmail's own messages.list excludes Spam/Trash unless
+ * asked for, and a new install shouldn't silently start indexing those. */
+export function getIncludeSpamTrash(): boolean {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'))
+    return Boolean(parsed.includeSpamTrash)
+  } catch {
+    return false
+  }
+}
+
+export function setIncludeSpamTrash(value: boolean): void {
+  fs.writeFileSync(settingsPath(), JSON.stringify({ includeSpamTrash: value }, null, 2))
+}
+
 function loadClientCredentials(): { client_id: string; client_secret: string } {
   const file = credentialsPath()
   if (!fs.existsSync(file)) {
@@ -168,12 +187,15 @@ export const gmailConnector: SourceConnector = {
     const auth = await getAuthorizedClient()
     const gmail = google.gmail({ version: 'v1', auth })
     const db = getDb()
+    const includeSpamTrash = getIncludeSpamTrash()
 
     let indexed = 0
     let pageToken: string | undefined
 
     do {
-      const list = await throttled(() => gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken }))
+      const list = await throttled(() =>
+        gmail.users.messages.list({ userId: 'me', maxResults: 100, pageToken, includeSpamTrash })
+      )
       const messages = list.data.messages ?? []
 
       for (const m of messages) {

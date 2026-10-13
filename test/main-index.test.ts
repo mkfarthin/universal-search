@@ -53,6 +53,8 @@ const mocks = vi.hoisted(() => {
       disconnect: vi.fn(),
       sync: vi.fn()
     },
+    getIncludeSpamTrash: vi.fn(() => false),
+    setIncludeSpamTrash: vi.fn(),
     filesConnector: {
       isConnected: vi.fn(),
       connect: vi.fn(),
@@ -77,7 +79,9 @@ vi.mock('../src/main/db', () => ({
 }))
 
 vi.mock('../src/main/connectors/gmail', () => ({
-  gmailConnector: mocks.gmailConnector
+  gmailConnector: mocks.gmailConnector,
+  getIncludeSpamTrash: mocks.getIncludeSpamTrash,
+  setIncludeSpamTrash: mocks.setIncludeSpamTrash
 }))
 
 vi.mock('../src/main/connectors/files', () => ({
@@ -111,6 +115,8 @@ beforeEach(() => {
   mocks.gmailConnector.connect.mockReset()
   mocks.gmailConnector.disconnect.mockReset()
   mocks.gmailConnector.sync.mockReset()
+  mocks.getIncludeSpamTrash.mockReset().mockReturnValue(false)
+  mocks.setIncludeSpamTrash.mockReset()
   mocks.filesConnector.isConnected.mockReset()
   mocks.filesConnector.connect.mockReset()
   mocks.filesConnector.disconnect.mockReset()
@@ -130,19 +136,30 @@ describe('search', () => {
 })
 
 describe('gmail handlers', () => {
-  it('auth-status reflects gmailConnector.isConnected()', async () => {
+  it('auth-status reflects gmailConnector.isConnected() and getIncludeSpamTrash()', async () => {
     mocks.gmailConnector.isConnected.mockReturnValue(true)
-    expect(await handler(IPC.gmailAuthStatus)({})).toEqual({ connected: true })
+    mocks.getIncludeSpamTrash.mockReturnValue(true)
+    expect(await handler(IPC.gmailAuthStatus)({})).toEqual({ connected: true, includeSpamTrash: true })
   })
 
   it('auth-start: on success, broadcasts authenticating then idle and returns connected', async () => {
     mocks.gmailConnector.connect.mockResolvedValue(undefined)
     const result = await handler(IPC.gmailAuthStart)({})
-    expect(result).toEqual({ connected: true })
+    expect(result).toEqual({ connected: true, includeSpamTrash: false })
     expect(statusMessages()).toEqual([
       { source: 'gmail', state: 'authenticating' },
       { source: 'gmail', state: 'idle' }
     ])
+  })
+
+  it('set-include-spam-trash: persists the value and returns fresh status', async () => {
+    mocks.gmailConnector.isConnected.mockReturnValue(true)
+    mocks.getIncludeSpamTrash.mockReturnValue(true)
+
+    const result = await handler(IPC.gmailSetIncludeSpamTrash)({}, true)
+
+    expect(mocks.setIncludeSpamTrash).toHaveBeenCalledWith(true)
+    expect(result).toEqual({ connected: true, includeSpamTrash: true })
   })
 
   it('auth-start: on failure, broadcasts an error status and rethrows', async () => {

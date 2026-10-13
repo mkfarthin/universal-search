@@ -6,6 +6,7 @@ export const IPC = {
   gmailAuthStart: 'gmail:auth-start',
   gmailDisconnect: 'gmail:disconnect',
   gmailSync: 'gmail:sync',
+  gmailSetIncludeSpamTrash: 'gmail:set-include-spam-trash',
 
   filesAuthStatus: 'files:auth-status',
   filesAuthStart: 'files:auth-start',

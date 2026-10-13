@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { ConnectorAuthState, FilesAuthState, SearchResult, SyncStatus } from '../../shared/types'
+import type { FilesAuthState, GmailAuthState, SearchResult, SyncStatus } from '../../shared/types'
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleString()
@@ -35,7 +35,7 @@ function statusLabel(status: SyncStatus | null, label: string): string | null {
 export default function App(): ReactNode {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
-  const [gmail, setGmail] = useState<ConnectorAuthState>({ connected: false })
+  const [gmail, setGmail] = useState<GmailAuthState>({ connected: false, includeSpamTrash: false })
   const [files, setFiles] = useState<FilesAuthState>({ connected: false, folders: [] })
   const [gmailStatus, setGmailStatus] = useState<SyncStatus | null>(null)
   const [filesStatus, setFilesStatus] = useState<SyncStatus | null>(null)
@@ -85,6 +85,14 @@ export default function App(): ReactNode {
           ) : (
             <button onClick={() => window.api.gmail.connect().then(setGmail)}>Connect Gmail</button>
           )}
+          <label className="spam-trash-toggle" title="Takes effect on the next Sync Gmail">
+            <input
+              type="checkbox"
+              checked={gmail.includeSpamTrash}
+              onChange={(e) => window.api.gmail.setIncludeSpamTrash(e.target.checked).then(setGmail)}
+            />
+            Include Spam/Trash
+          </label>
           <button onClick={() => window.api.files.connect().then(setFiles)}>Add Folder…</button>
           {files.connected && <button onClick={() => window.api.files.sync()}>Sync Files</button>}
         </div>

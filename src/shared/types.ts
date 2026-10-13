@@ -23,3 +23,7 @@ export interface ConnectorAuthState {
 export interface FilesAuthState extends ConnectorAuthState {
   folders: string[]
 }
+
+export interface GmailAuthState extends ConnectorAuthState {
+  includeSpamTrash: boolean
+}
