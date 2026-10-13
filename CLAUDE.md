@@ -14,6 +14,11 @@ OAuth setup and how folder indexing works.
 
 - `npm run dev` — run the app with hot reload (electron-vite)
 - `npm test` — run the vitest suite (`test/*.test.ts`); a single file: `npx vitest run test/db.test.ts`
+- `npm run test:coverage` — coverage across the whole `src/` tree (`vitest.config.ts` sets `coverage.all: true`
+  so this reports untested files as 0% too, not just whatever the existing tests happen to import — without
+  that it silently measures only the files already under test and looks deceptively good). The default text
+  reporter hides files already at 100% coverage; `npx vitest run --coverage.reporter=json` + read
+  `coverage/coverage-final.json` if you need to confirm a specific file's number directly.
 - `npm run typecheck` — TypeScript, no emit (checks both the renderer and main/preload tsconfigs)
 - `npm run lint` — ESLint (flat config, `eslint.config.js`)
 - `npm run build` — production build via electron-vite
@@ -38,6 +43,16 @@ three communicate over the IPC channels named in `src/shared/ipc.ts`; the
 payload shapes are in `src/shared/types.ts`. When adding a new IPC call, it
 touches all three: a handler in `src/main/index.ts`, an exposed method in
 `src/preload/index.ts`, and the type in `src/shared/types.ts`.
+
+`main/index.ts`'s handler logic (the try/catch/broadcast-status/rethrow
+pattern around each connector call) is covered by `test/main-index.test.ts`,
+which mocks the `electron` module itself (`vi.mock('electron', ...)`) along
+with `./db` and both connector modules, captures what `ipcMain.handle()`
+was registered with, then invokes those handlers directly and asserts on
+the mocked `BrowserWindow`'s `webContents.send` calls — no real Electron
+process involved. If you add a new IPC handler with the same
+try/succeed-broadcast/catch-and-rethrow shape, add a case here rather than
+relying on manual verification alone.
 
 **Search index (`src/main/db/`):** a single SQLite database (Electron
 `userData` dir) with a `documents` table and a linked `documents_fts` FTS5
@@ -69,12 +84,17 @@ renderer don't need to know the source exists ahead of time beyond a
 - `gmail.ts`: loopback-redirect OAuth (a local HTTP server catches
   Google's redirect — the standard flow for installed/desktop apps),
   encrypted token storage via `safeStorage`, and a `sync()` that walks the
-  Gmail API. Proactively throttles requests (`throttled()`, ~5/sec) rather
-  than only reacting to quota errors after the fact — reactive
+  Gmail API. Proactively throttles requests (`createThrottle()`, ~5/sec)
+  rather than only reacting to quota errors after the fact — reactive
   backoff-on-429 alone re-trips the same per-minute quota as soon as the
   backoff window passes, since it doesn't change the sustained request
   rate. `withRetry()` remains as a fallback for whatever still slips
-  through.
+  through. Both live in `src/main/lib/rate-limit.ts` — pure, API-client-
+  agnostic, and unit-tested with fake timers (`test/rate-limit.test.ts`) —
+  reusable if another connector ever needs the same treatment. The MIME
+  payload walking (`extractPlainText`, nested multipart handling) is
+  likewise split out, into `gmail-parse.ts`, for the same testable-core
+  reason.
 - `files.ts` + `files-walk.ts`: `connect()` opens a native folder picker
   (`dialog.showOpenDialog`) and appends to a persisted folder list
   (`files-folders.json` in `userData`); `sync()` walks those folders, and

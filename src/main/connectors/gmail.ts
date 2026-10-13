@@ -7,64 +7,26 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { URL } from 'node:url'
 import { getDb, recordSync, upsertDocument } from '../db'
+import { createThrottle, withRetry } from '../lib/rate-limit'
+import { extractPlainText, findHeader } from './gmail-parse'
 import type { SourceConnector } from './types'
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 const MAX_MESSAGES_PER_SYNC = 2000
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000
-const MAX_RETRIES = 6
-const BASE_RETRY_DELAY_MS = 1000
-const MAX_RETRY_DELAY_MS = 32000
+const RETRY_OPTIONS = { maxRetries: 6, baseDelayMs: 1000, maxDelayMs: 32000 }
 // Caps sustained throughput to ~5 requests/sec (~1500 quota units/min at 5
 // units/call), comfortably under the Gmail API's per-minute-per-user quota.
 // Backoff alone isn't enough: it only reacts after a burst already tripped
 // the limit, then immediately re-bursts once the backoff window passes.
 const MIN_REQUEST_INTERVAL_MS = 200
 
-interface ApiError {
-  response?: { status?: number; headers?: Record<string, string>; data?: { error?: { errors?: { reason?: string }[] } } }
-  code?: number
-  errors?: { reason?: string }[]
-}
+const throttle = createThrottle(MIN_REQUEST_INTERVAL_MS)
 
-function isRateLimitError(err: unknown): boolean {
-  const e = err as ApiError
-  if (e?.response?.status === 429 || e?.code === 429) return true
-  const reason = e?.errors?.[0]?.reason ?? e?.response?.data?.error?.errors?.[0]?.reason
-  return typeof reason === 'string' && /rateLimitExceeded|quotaExceeded|userRateLimitExceeded/i.test(reason)
-}
-
-/**
- * The Gmail API's per-minute quota is easy to trip during a large sync
- * (each message fetch costs quota units). Google's documented fix is
- * exponential backoff with jitter on 429/quota errors, which this wraps
- * around every API call in sync() below.
- */
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await fn()
-    } catch (err) {
-      if (!isRateLimitError(err) || attempt >= MAX_RETRIES) throw err
-      const retryAfter = (err as ApiError)?.response?.headers?.['retry-after']
-      const delay = retryAfter
-        ? Number(retryAfter) * 1000
-        : Math.min(MAX_RETRY_DELAY_MS, BASE_RETRY_DELAY_MS * 2 ** attempt) * (0.5 + Math.random() * 0.5)
-      await new Promise((resolve) => setTimeout(resolve, delay))
-    }
-  }
-}
-
-let nextRequestSlot = 0
-
-/** Spaces calls out to MIN_REQUEST_INTERVAL_MS apart, then applies withRetry
- * as a safety net for any quota error that slips through anyway. */
-async function throttled<T>(fn: () => Promise<T>): Promise<T> {
-  const now = Date.now()
-  const runAt = Math.max(now, nextRequestSlot)
-  nextRequestSlot = runAt + MIN_REQUEST_INTERVAL_MS
-  if (runAt > now) await new Promise((resolve) => setTimeout(resolve, runAt - now))
-  return withRetry(fn)
+/** Spaces calls apart (see MIN_REQUEST_INTERVAL_MS above), then applies
+ * withRetry as a safety net for any quota error that slips through anyway. */
+function throttled<T>(fn: () => Promise<T>): Promise<T> {
+  return throttle(() => withRetry(fn, RETRY_OPTIONS))
 }
 
 function credentialsPath(): string {
@@ -187,28 +149,6 @@ async function getAuthorizedClient(): Promise<OAuth2Client> {
   return client
 }
 
-function decodeBase64Url(data: string): string {
-  return Buffer.from(data, 'base64url').toString('utf-8')
-}
-
-interface GmailPart {
-  mimeType?: string | null
-  body?: { data?: string | null } | null
-  parts?: GmailPart[] | null
-}
-
-function extractPlainText(payload: GmailPart | null | undefined): string | null {
-  if (!payload) return null
-  if (payload.mimeType === 'text/plain' && payload.body?.data) {
-    return decodeBase64Url(payload.body.data)
-  }
-  for (const part of payload.parts ?? []) {
-    const text = extractPlainText(part)
-    if (text) return text
-  }
-  return null
-}
-
 export const gmailConnector: SourceConnector = {
   id: 'gmail',
 
@@ -240,8 +180,8 @@ export const gmailConnector: SourceConnector = {
         if (!m.id) continue
         const full = await throttled(() => gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' }))
         const headers = full.data.payload?.headers ?? []
-        const subject = headers.find((h) => h.name === 'Subject')?.value ?? '(no subject)'
-        const from = headers.find((h) => h.name === 'From')?.value ?? null
+        const subject = findHeader(headers, 'Subject') ?? '(no subject)'
+        const from = findHeader(headers, 'From')
         const timestamp = full.data.internalDate ? Number(full.data.internalDate) : Date.now()
         const body = extractPlainText(full.data.payload) ?? full.data.snippet ?? ''
 
