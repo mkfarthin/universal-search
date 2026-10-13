@@ -5,7 +5,7 @@ import { IPC } from '../shared/ipc'
 import type { SyncStatus } from '../shared/types'
 import { getDb, searchDocuments } from './db'
 import { gmailConnector } from './connectors/gmail'
-import { filesConnector, listFolders } from './connectors/files'
+import { filesConnector, listFolders, removeFolder } from './connectors/files'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -95,6 +95,11 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC.filesDisconnect, () => {
     filesConnector.disconnect()
+  })
+
+  ipcMain.handle(IPC.filesRemoveFolder, (_e, folder: string) => {
+    removeFolder(folder)
+    return { connected: filesConnector.isConnected(), folders: listFolders() }
   })
 
   ipcMain.handle(IPC.filesSync, async () => {

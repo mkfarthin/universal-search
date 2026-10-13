@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { getDb, recordSync, upsertDocument } from '../db'
+import { deleteDocumentsByIdPrefix, getDb, recordSync, upsertDocument } from '../db'
 import type { SourceConnector } from './types'
 import { isTextFile, walkFiles } from './files-walk'
 
@@ -27,6 +27,14 @@ export function listFolders(): string[] {
 
 function saveFolders(folders: string[]): void {
   fs.writeFileSync(foldersConfigPath(), JSON.stringify(folders, null, 2))
+}
+
+/** Removes a folder from the configured list and deletes every document
+ * already indexed from inside it, so a removed folder leaves no stale
+ * entries behind. */
+export function removeFolder(folder: string): number {
+  saveFolders(listFolders().filter((f) => f !== folder))
+  return deleteDocumentsByIdPrefix(getDb(), `files:${folder}${path.sep}`)
 }
 
 export const filesConnector: SourceConnector = {

@@ -47,11 +47,51 @@ body {
 }
 
 .folders-bar {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8rem;
-  opacity: 0.65;
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-  overflow-wrap: break-word;
+}
+
+.folder-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.folder-chip-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 28rem;
+}
+
+.folder-chip-remove {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.folder-chip-remove:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.25);
 }
 
 .status-bar {

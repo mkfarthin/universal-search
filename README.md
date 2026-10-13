@@ -33,6 +33,8 @@ index. Both are gitignored and never leave your machine.
 
 Click **Add Folder…** and pick a directory in the native file picker — it's
 indexed on the next **Sync Files**. Add it again to index more folders.
+Click the **×** on a folder's chip to stop indexing it; this also removes
+everything already indexed from inside it.
 
 Content is extracted and indexed for common text file types (`.md`, `.txt`,
 source code, `.json`, `.csv`, etc., up to 2MB each); other file types are

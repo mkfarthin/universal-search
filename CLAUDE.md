@@ -77,8 +77,12 @@ renderer don't need to know the source exists ahead of time beyond a
   through.
 - `files.ts` + `files-walk.ts`: `connect()` opens a native folder picker
   (`dialog.showOpenDialog`) and appends to a persisted folder list
-  (`files-folders.json` in `userData`); `sync()` walks those folders. The
-  walk itself (`files-walk.ts`) is pure/Electron-free — same testable-core
+  (`files-folders.json` in `userData`); `sync()` walks those folders, and
+  `removeFolder()` both drops a folder from that list and deletes every
+  document already indexed under it (`deleteDocumentsByIdPrefix` in
+  `db/schema.ts`, matched by exact string prefix rather than SQL `LIKE` so
+  a path containing `%`/`_` can't be misread as a wildcard). The walk
+  itself (`files-walk.ts`) is pure/Electron-free — same testable-core
   split as `db/schema.ts` — and unconditionally skips dot-directories
   (so pointing it at a home directory never surfaces `.ssh`/`.aws`/etc.)
   and common build/dependency noise. Content is read for a fixed set of

@@ -22,7 +22,8 @@ const api = {
     status: (): Promise<FilesAuthState> => ipcRenderer.invoke(IPC.filesAuthStatus),
     connect: (): Promise<FilesAuthState> => ipcRenderer.invoke(IPC.filesAuthStart),
     disconnect: (): Promise<void> => ipcRenderer.invoke(IPC.filesDisconnect),
-    sync: (): Promise<{ indexed: number }> => ipcRenderer.invoke(IPC.filesSync)
+    sync: (): Promise<{ indexed: number }> => ipcRenderer.invoke(IPC.filesSync),
+    removeFolder: (folder: string): Promise<FilesAuthState> => ipcRenderer.invoke(IPC.filesRemoveFolder, folder)
   }
 }
 

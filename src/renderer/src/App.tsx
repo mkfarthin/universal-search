@@ -91,10 +91,20 @@ export default function App(): ReactNode {
       </header>
 
       {files.connected && (
-        <div className="folders-bar">
-          Indexing {files.folders.length} folder{files.folders.length === 1 ? '' : 's'}:{' '}
-          {files.folders.join(', ')}
-        </div>
+        <ul className="folders-bar">
+          {files.folders.map((folder) => (
+            <li key={folder} className="folder-chip">
+              <span className="folder-chip-path">{folder}</span>
+              <button
+                className="folder-chip-remove"
+                title={`Stop indexing ${folder}`}
+                onClick={() => window.api.files.removeFolder(folder).then(setFiles)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
       {gmailLabel && <div className="status-bar">{gmailLabel}</div>}

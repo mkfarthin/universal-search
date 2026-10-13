@@ -108,6 +108,16 @@ export function searchDocuments(db: Database.Database, text: string, limit = 50)
   return stmt.all(SNIPPET_MATCH_START, SNIPPET_MATCH_END, sanitizeMatchQuery(text), limit) as SearchRow[]
 }
 
+/**
+ * Deletes every document whose id starts with `prefix`. Uses substr/length
+ * comparison rather than LIKE so the prefix is matched literally — a
+ * folder path containing '%' or '_' can't be misinterpreted as a wildcard.
+ */
+export function deleteDocumentsByIdPrefix(db: Database.Database, prefix: string): number {
+  const result = db.prepare(`DELETE FROM documents WHERE substr(id, 1, length(?)) = ?`).run(prefix, prefix)
+  return result.changes
+}
+
 export function recordSync(db: Database.Database, source: string): void {
   db.prepare(
     `

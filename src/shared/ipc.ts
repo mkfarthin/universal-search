@@ -10,5 +10,6 @@ export const IPC = {
   filesAuthStatus: 'files:auth-status',
   filesAuthStart: 'files:auth-start',
   filesDisconnect: 'files:disconnect',
-  filesSync: 'files:sync'
+  filesSync: 'files:sync',
+  filesRemoveFolder: 'files:remove-folder'
 } as const
